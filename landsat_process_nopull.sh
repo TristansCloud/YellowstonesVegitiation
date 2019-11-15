@@ -1,98 +1,24 @@
 #!/bin/bash
 
-## Parameters ##
-DAYSAGO=1048
-RANGE=365 # the range of days to search for satellite imagery, $DAYSAGO - $RANGE = min_date
-#FOLDERNAME=$(date -d "$DAYSAGO day ago" '+%Y-%m-%d') # THIS WONT WORK ON MAC OS, needs to be run visualization server, the date cmd takes diff inputs. Need date in "YYY-MM-DD" format (%Y-%m-%d)
-FOLDERNAME=2016 #use to manually name the folder
-LOCATION="Yellowstone"
-OUTPUT="training"
-CLOUD=20 #the acceptable % cloud cover 
-LANDSAT_PATH=38 # Landsat 8 path
-LANDSAT_ROW=29 # Landsat 8 row
-
-#get data
-kubectl delete pod getlandsat
-
-read -r -d '' GET_LANDSAT << EOM
-apiVersion: v1
-kind: Pod
-metadata:
-  name: getlandsat
-spec:
-  containers:
-  - name: getlandsat
-    command: ["/bin/bash","-c"]
-    args: [ "Rscript /mnt/nfs/script/rscripts/get_landsat_data.R DAYSAGO RANGE LOCATION LANDSAT_PATH LANDSAT_ROW CLOUD FOLDERNAME"]
-    image: tristankcloud/rlandsat:latest
-    resources:
-      requests:
-        ephemeral-storage: "64Mi"
-      limits:
-        cpu: "1000m"
-        ephemeral-storage: "15Gi"
-    stdinOnce: true
-    volumeMounts:
-      - mountPath: /mnt/nfs
-        name: nfs
-      - mountPath: /tmp
-        name: tmp
-      - mountPath: /cache
-        name: cache-volume
-  restartPolicy: Never
-  volumes:
-  - name: nfs
-    nfs:
-      path: /mnt/nfs
-      server: 10.180.129.161
-  - name: tmp
-    nfs:
-      path: /mnt/nfs/tmp
-      server: 10.180.129.161
-  - name: cache-volume
-    nfs:
-      path: /mnt/nfs/tmp
-      server: 10.180.129.161
-EOM
-
-GET_LANDSAT=$(echo -e "$GET_LANDSAT" | sed 's/DAYSAGO/'"$DAYSAGO"'/')
-GET_LANDSAT=$(echo -e "$GET_LANDSAT" | sed 's/RANGE/'"$RANGE"'/')
-GET_LANDSAT=$(echo -e "$GET_LANDSAT" | sed 's/LOCATION/'"$LOCATION"'/')
-GET_LANDSAT=$(echo -e "$GET_LANDSAT" | sed 's/LANDSAT_PATH/'"$LANDSAT_PATH"'/')
-GET_LANDSAT=$(echo -e "$GET_LANDSAT" | sed 's/LANDSAT_ROW/'"$LANDSAT_ROW"'/')
-GET_LANDSAT=$(echo -e "$GET_LANDSAT" | sed 's/CLOUD/'"$CLOUD"'/')
-GET_LANDSAT=$(echo -e "$GET_LANDSAT" | sed 's/FOLDERNAME/'"$FOLDERNAME"'/')
-
-echo -e "$GET_LANDSAT" | kubectl apply -f -
-
-status=`kubectl get pods getlandsat -o jsonpath='{.status..phase}'`
-while [ "$status" != "Succeeded" ]; do
-    if [ "$status" ==  "Failed" ]; then
-        echo "Failed"
-        exit
-    else
-    sleep 1000
-    fi 
-  status=`kubectl get pods getlandsat -o jsonpath='{.status..phase}'`
-done
-
-#delete old pod
-kubectl delete pod getlandsat
+## Parameters ## Example: ./landsat_process_nopull.sh 2016 Yellowstone training
+FOLDERNAME=$1 #2016 or 2019-10-11 etc.
+LOCATION=$2 #Yellowstone or SalmonChallis
+OUTPUT=$3 #training or validation
 
 #clear unzipped folder
-kubectl delete pod deletefiles
+kubectl delete pod deletefiles1
 
 read -r -d '' DELETE_UNZIP << EOM
 apiVersion: v1
 kind: Pod
 metadata:
-  name: deletefiles
+  name: deletefiles1
 spec:
   securityContext:
     runAsUser: 1000
     runAsGroup: 1000
   containers:
-  - name: deletefiles
+  - name: deletefiles1
     command: ["/bin/bash","-c"]
     args: [ "/mnt/nfs/script/delete_old_files.sh LOCATION"]
     image: ubuntu:latest
@@ -127,7 +53,7 @@ DELETE_UNZIP=$(echo -e "$DELETE_UNZIP" | sed 's/LOCATION/'"$LOCATION"'/')
 
 echo -e "$DELETE_UNZIP" | kubectl apply -f -
 
-status=`kubectl get pods deletefiles -o jsonpath='{.status..phase}'`
+status=`kubectl get pods deletefiles1 -o jsonpath='{.status..phase}'`
 while [ "$status" != "Succeeded" ]; do
     if [ "$status" ==  "Failed" ]; then
         echo "Failed"
@@ -135,24 +61,24 @@ while [ "$status" != "Succeeded" ]; do
     else
     sleep 5
     fi 
-  status=`kubectl get pods deletefiles -o jsonpath='{.status..phase}'`
+  status=`kubectl get pods deletefiles1 -o jsonpath='{.status..phase}'`
 done
-kubectl delete pod deletefiles
+kubectl delete pod deletefiles1
 
 #unzip downloaded data
-kubectl delete pod unziplandsat
+kubectl delete pod unziplandsat1
 
 read -r -d '' UNZIP << EOM
 apiVersion: v1
 kind: Pod
 metadata:
-  name: unziplandsat
+  name: unziplandsat1
 spec:
   securityContext:
     runAsUser: 1000
     runAsGroup: 1000
   containers:
-  - name: unziplandsat
+  - name: unziplandsat1
     command: ["/bin/bash","-c"]
     args: 
     - /mnt/nfs/script/unzip_landsat.sh FOLDERNAME LOCATION
@@ -190,7 +116,7 @@ UNZIP=$(echo -e "$UNZIP" | sed 's/LOCATION/'"$LOCATION"'/')
 
 echo -e "$UNZIP" | kubectl apply -f -
 
-status=`kubectl get pods unziplandsat -o jsonpath='{.status..phase}'`
+status=`kubectl get pods unziplandsat1 -o jsonpath='{.status..phase}'`
 while [ "$status" != "Succeeded" ]; do
     if [ "$status" ==  "Failed" ]; then
         echo "Failed"
@@ -198,23 +124,23 @@ while [ "$status" != "Succeeded" ]; do
     else
     sleep 5
     fi 
-  status=`kubectl get pods unziplandsat -o jsonpath='{.status..phase}'`
+  status=`kubectl get pods unziplandsat1 -o jsonpath='{.status..phase}'`
 done
 
 echo "unzipping done"
-kubectl delete pod unziplandsat
+kubectl delete pod unziplandsat1
 
 #process data
-kubectl delete pod processlandsat
+kubectl delete pod processlandsat1
 
 read -r -d '' PROCESS << EOM
 apiVersion: v1
 kind: Pod
 metadata:
-  name: processlandsat
+  name: processlandsat1
 spec:
   containers:
-  - name: processlandsat
+  - name: processlandsat1
     command: ["/bin/bash","-c"]
     args: [ "Rscript /mnt/nfs/script/rscripts/process_raster.R LOCATION OUTPUT"]
     image: tristankcloud/rlandsat:latest
@@ -252,7 +178,7 @@ PROCESS=$(echo -e "$PROCESS" | sed 's/OUTPUT/'"$OUTPUT"'/')
 
 echo -e "$PROCESS" | kubectl apply -f -
 
-status=`kubectl get pods processlandsat -o jsonpath='{.status..phase}'`
+status=`kubectl get pods processlandsat1 -o jsonpath='{.status..phase}'`
 while [ "$status" != "Succeeded" ]; do
     if [ "$status" ==  "Failed" ]; then
         echo "Failed"
@@ -260,28 +186,28 @@ while [ "$status" != "Succeeded" ]; do
     else
     sleep 60
     fi 
-  status=`kubectl get pods processlandsat -o jsonpath='{.status..phase}'`
+  status=`kubectl get pods processlandsat1 -o jsonpath='{.status..phase}'`
 done
 echo "processing done"
-kubectl delete pod processlandsat
+kubectl delete pod processlandsat1
 
 #clear /tmp 
 sudo rm -r /tmp/Rtmp*
 
 #pass metadata
-kubectl delete pod passmetadata
+kubectl delete pod passmetadata1
 
  read -r -d '' METADATA << EOM
 apiVersion: v1
 kind: Pod
 metadata:
-  name: passmetadata
+  name: passmetadata1
 spec:
   securityContext:
     runAsUser: 1000
     runAsGroup: 1000
   containers:
-  - name: passmetadata
+  - name: passmetadata1
     command: ["/bin/bash","-c"]
     args: 
     - /mnt/nfs/script/pass_extra_variables.sh LOCATION OUTPUT FOLDERNAME
@@ -319,7 +245,7 @@ METADATA=$(echo -e "$METADATA" | sed 's/FOLDERNAME/'"$FOLDERNAME"'/')
 
 echo -e "$METADATA" | kubectl apply -f -
 
-status=`kubectl get pods passmetadata -o jsonpath='{.status..phase}'`
+status=`kubectl get pods passmetadata1 -o jsonpath='{.status..phase}'`
 while [ "$status" != "Succeeded" ]; do
     if [ "$status" ==  "Failed" ]; then
         echo "Failed"
@@ -327,16 +253,16 @@ while [ "$status" != "Succeeded" ]; do
     else
     sleep 5
     fi 
-  status=`kubectl get pods passmetadata -o jsonpath='{.status..phase}'`
+  status=`kubectl get pods passmetadata1 -o jsonpath='{.status..phase}'`
 done
 echo "metadata done"
 
-kubectl delete pod passmetadata
+kubectl delete pod passmetadata1
 
 # clear unzipped folder
 echo -e "$DELETE_UNZIP" | kubectl apply -f -
 
-status=`kubectl get pods deletefiles -o jsonpath='{.status..phase}'`
+status=`kubectl get pods deletefiles1 -o jsonpath='{.status..phase}'`
 while [ "$status" != "Succeeded" ]; do
     if [ "$status" ==  "Failed" ]; then
         echo "Failed"
@@ -344,9 +270,9 @@ while [ "$status" != "Succeeded" ]; do
     else
     sleep 5
     fi 
-  status=`kubectl get pods deletefiles -o jsonpath='{.status..phase}'`
+  status=`kubectl get pods deletefiles1 -o jsonpath='{.status..phase}'`
 done
-kubectl delete pod deletefiles
+kubectl delete pod deletefiles1
 
 echo "done"
 exit

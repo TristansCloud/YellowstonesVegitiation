@@ -2,7 +2,7 @@
 
 for a in /mnt/nfs/data/$1/unzipped/$3/*/*.txt
 do
-    folder="$(cut -d'/' -f7 <<< "$a")"
+    folder="$(cut -d'/' -f8 <<< "$a")"
     name=`expr $a : '\(.*\).txt'`
     name=${name##*/}
     name+=".txt"
@@ -11,7 +11,7 @@ done
 
 for b in /mnt/nfs/data/$1/unzipped/$3/*/*.xml
 do
-    folder="$(cut -d'/' -f7 <<< "$b")"
+    folder="$(cut -d'/' -f8 <<< "$b")"
     name=`expr $b : '\(.*\).xml'`
     name=${name##*/}
     name+=".xml"

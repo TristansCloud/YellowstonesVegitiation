@@ -3,7 +3,7 @@ library(rgdal)
 options(rasterMaxMemory = 1e10) #10Gb of ram max
 
 args<-commandArgs(trailingOnly=TRUE)
-input = file.path("/mnt/nfs/data",as.character(args[1]),"unzipped",fsep="/")
+input = file.path("/mnt/nfs/data/SalmonChallis",as.character(args[1]),fsep="/")
 output = file.path("/mnt/nfs/data",as.character(args[1]),as.character(args[2]),fsep="/") #path to where the data should go
 name = "hello" # intitialize object so delete old /tmp works on first iteration of loop
 print(args)
@@ -27,11 +27,12 @@ for(direct in directory) {
         unlink(file.path("/tmp",name_old,fsep="/"), recursive = TRUE)
 
         # get paths to basemaps
-        DEM = raster(file.path("/mnt/nfs/data",as.character(args[1]),"base_layers/Clipped_filled_dem.tif",fsep="/"))
+        DEM = raster(file.path("/mnt/nfs/data",as.character(args[1]),"base_layers/dem.tif",fsep="/"))
         flow_accum = raster(file.path("/mnt/nfs/data",as.character(args[1]),"base_layers/accumulation.tif",fsep="/"))
-        slope = raster(file.path("/mnt/nfs/data",as.character(args[1]),"base_layers/Clipped_slope.tif",fsep="/"))
-        aspect = raster(file.path("/mnt/nfs/data",as.character(args[1]),"base_layers/Clipped_filled_aspect.tif",fsep="/"))
-        ruggedness = raster(file.path("/mnt/nfs/data",as.character(args[1]),"base_layers/Clipped_TRI.tif",fsep="/"))
+        slope = raster(file.path("/mnt/nfs/data",as.character(args[1]),"base_layers/slope.tif",fsep="/"))
+        aspect = raster(file.path("/mnt/nfs/data",as.character(args[1]),"base_layers/aspect.tif",fsep="/"))
+        ruggedness = raster(file.path("/mnt/nfs/data",as.character(args[1]),"base_layers/tri.tif",fsep="/"))
+        neighbor_flow = raster(file.path("/mnt/nfs/data",as.character(args[1]),"base_layers/neighbor_flow.tif",fsep="/"))
 
         files_for_raster <- list.files(path = sub, pattern = "*.tif$", full.names = TRUE)
         rasterstack = stack(files_for_raster)
@@ -42,6 +43,8 @@ for(direct in directory) {
         slopecrop = crop(slope,rasterstack)
         aspectcrop = crop(aspect,rasterstack)
         ruggednesscrop = crop(ruggedness,rasterstack)
+        neighbor_crop = crop(neighbor_flow,rasterstack)
+
         print(c("cropped"))
         print(object.size(DEMcrop))
         print(object.size(rasterstack))
@@ -52,6 +55,7 @@ for(direct in directory) {
         slopecrop = resample(slopecrop,rasterstack)
         aspectcrop = resample(aspectcrop,rasterstack)
         ruggednesscrop = resample(ruggednesscrop,rasterstack)
+        neighbor_crop = resample(neighbor_crop,rasterstack)
         print(c("resampled"))
         print(object.size(DEMcrop))
         print(object.size(rasterstack))
@@ -62,16 +66,17 @@ for(direct in directory) {
         slopecrop = mask(slopecrop,raster::subset(rasterstack,1))
         aspectcrop = mask(aspectcrop,raster::subset(rasterstack,1))
         ruggednesscrop = mask(ruggednesscrop,raster::subset(rasterstack,1))
+        neighbor_crop = mask(neighbor_crop,raster::subset(rasterstack,1))
         print(c("masked"))
         print(object.size(DEMcrop))
         print(object.size(rasterstack))
 
         # add baselayers to the raster stack
-        finalstack = addLayer(rasterstack,DEMcrop,flow_accumcrop,slopecrop,aspectcrop,ruggednesscrop)
+        finalstack = addLayer(rasterstack,DEMcrop,flow_accumcrop,slopecrop,aspectcrop,ruggednesscrop,neighbor_crop)
         print(names(finalstack))
         print(nlayers(finalstack))
-        bands<-c("band1","band2","band3","band4","band5","band6","band7")
-        type<-c("quality","sr_ndvi","DEM","flow_accum","slope","aspect","TRI")
+        bands<-c("band1","band2","band3","band4","band5","band6","band7","band8")
+        type<-c("quality","sr_ndvi","DEM","flow_accum","slope","aspect","TRI","neighbor_accum")
         band_info<-data.frame(bands,type)
         
         print("finalstack")
@@ -86,7 +91,7 @@ for(direct in directory) {
         writeRaster(finalstack, format="GTiff", filename=file.path(write,name,fsep="/"), options=c("INTERLEAVE=BAND","COMPRESS=NONE"), overwrite=TRUE)
         write.csv(band_info, file = paste(file.path(write,name,fsep="/"),".csv",sep=""))
         print("done processing")
-        rm(rasterstack,DEMcrop,flow_accumcrop,slopecrop,aspectcrop,ruggednesscrop)
+        rm(rasterstack,DEMcrop,flow_accumcrop,slopecrop,aspectcrop,ruggednesscrop,neighbor_crop)
         gc()
         print(gc())
         system("sysctl -w vm.drop_caches=3")

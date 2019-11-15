@@ -1,28 +1,46 @@
-library(rLandsat)
-
 # DAYS_AGO  RANGE CLOUD
 args<-commandArgs(trailingOnly=TRUE)
 
-espa_creds("triskos", "DxzWRXMBF843")
-max_date = Sys.Date()-as.numeric(args[1])
-min_date = Sys.Date()-(as.numeric(args[1])+as.numeric(args[2]))
-path=args[4]
-row=args[5]
-cloud=args[6]
-foldername=args[7]
+max_date = as.character(Sys.Date()-as.numeric(args[1]))
+min_date = as.character(Sys.Date()-(as.numeric(args[1])+as.numeric(args[2])))
+path<-as.numeric(args[4])
+row<-as.numeric(args[5])
+cloud<-as.numeric(args[6])
+foldername<-args[7]
+for(i in args){
+    print(typeof(i))
+}
 print(args)
-print(c(max_date,min_date,path,row,cloud,foldername))
+print(list(max_date,min_date,path,row,cloud,foldername))
+for(i in list(max_date,min_date,path,row,cloud,foldername)){
+    print(typeof(i))
+}
+
+#landsat package and creds
+library(rLandsat)
+espa_creds("triskos", "DxzWRXMBF843")
 
 # get all the products, define path and row
 result = landsat_search(min_date = min_date, max_date = max_date, path_master = path, row_master = row,source="usgs")
 print("got results")
+print(result$cloud_cover_land)
 result = base::subset(result, result$cloud_cover_land<=cloud)
 print("subset")
 print(result$cloud_cover_land)
 # placing an espa order
 result_order = espa_order(result$landsat_product_id, product = c("sr_ndvi"),
                           projection = "lonlat",
-                          order_note = "Idaho national forest")
+                          order_note = "National forest")
+
+if (is.null(result_order[["order_details"]][["status"]])) {
+  available = data.frame(result_order["product_available"])
+  available = base::subset(available, product_available.sr_ndvi == 1)
+  available = base::subset(available, product_available.pixel_qa == 1)
+}
+result_order = espa_order(available$product_available.product_id, product = c("sr_ndvi"),
+                          projection = "lonlat",
+                          order_note = "National forest")
+
 order_id = result_order$order_details$orderid
 print(order_id)
 Sys.sleep(100)
@@ -44,16 +62,8 @@ while(durl[["order_details"]][["status"]][1]!="complete"){
     durl = espa_status(order_id = order_id, getSize = TRUE)
 }
 
-Sys.sleep(1000)
+Sys.sleep(100)
 
-for(i in durl[["order_details"]][["status"]]){
-    if(i == "complete") {
-    Sys.sleep(1000)
-    } else {
-    print("order error")
-    q(save = "no")
-    }
-}
 print(durl[["order_details"]][["status"]])
 
 # create directories and set permissions
