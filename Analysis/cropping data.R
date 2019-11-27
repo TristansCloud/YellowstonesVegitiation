@@ -103,6 +103,7 @@ salsummer<-stack("/mnt/nfs/Rstudio/data/salchallissummer.tif")
 yelspring<-stack("/mnt/nfs/Rstudio/data/yellowstonespring.tif")
 yelsummer<-stack("/mnt/nfs/Rstudio/data/yellowstonesummer.tif")
 
+## SALSPRING ###
 sspr<-salspring[[2:3]]
 sspr.crop<-modify_raster_margins(sspr,extent_delta = c(0,-20,0,-25)) #target output = 2856 x 5151
 sspr.crop
@@ -113,8 +114,18 @@ sspr.crop[[2]]<-(sspr.crop[[2]]+100)/9000 # dem from anywhere in the world can b
 
 sspr.lowrezdem<-raster::aggregate(sspr.crop[[2]],fact=3) # fact = 3 reduces resolution to 1/3 original
 
+## YELSPRING ##
+yspr<-yelspring[[2:3]]
+yspr.crop<-modify_raster_margins(yspr,extent_delta = c(0,-20,0,-25)) #target output = 2856 x 5151
+yspr.crop
+rm(yspr)
+
+yspr.crop[[1]]<-yspr.crop[[1]]/10000
+yspr.crop[[2]]<-(yspr.crop[[2]]+100)/9000 # dem from anywhere in the world can be used
+yspr.lowrezdem<-raster::aggregate(yspr.crop[[2]],fact=3)
+
 ## Creating tensors ##
-Area="SalmonChallis"
+Area="Yellowstone"
 season="tensors/spring"
 tens.path=file.path("/mnt/nfs/data",Area,season,fsep = "/")
 # parameters, everything must be a multiple of the raster::aggregate fact, here fact = 3.
@@ -131,6 +142,7 @@ height.ndvi = 51
 totalframes = 4464
 
 i=0
+#salspring
 sspr.ndvi<-as.matrix(sspr.crop[[1]])
 sspr.highdem<-as.matrix(sspr.crop[[2]])
 sspr.lowdem<-as.matrix(sspr.lowrezdem)
@@ -151,24 +163,75 @@ for(x in 1:totalcols){
     ndvi.colmin<-ndvi.buffer + ((col-1)*high.step)+1
     ndvi.colmax<-ndvi.colmin+50
     NDVI<-sspr.ndvi[ndvi.rowmin:ndvi.rowmax,
-                 ndvi.colmin:ndvi.colmax]
+                    ndvi.colmin:ndvi.colmax]
     highdem.rowmin<-dem.buffer + ((row-1)*high.step)+1 
     highdem.rowmax<-highdem.rowmin+152
     highdem.colmin<-dem.buffer + ((col-1)*high.step)+1
     highdem.colmax<-highdem.colmin+152
     highresDEM<-sspr.highdem[highdem.rowmin:highdem.rowmax,
-                    highdem.colmin: highdem.colmax]
+                             highdem.colmin: highdem.colmax]
     highdem.crop.rowmin<-ndvi.buffer + ((row-1)*high.step)+1
     highdem.crop.rowmax<-highdem.crop.rowmin+50
     highdem.crop.colmin<-ndvi.buffer + ((col-1)*high.step)+1
     highdem.crop.colmax<-highdem.crop.colmin+50
     highdemcrop<-sspr.highdem[highdem.crop.rowmin:highdem.crop.rowmax,
-                    highdem.crop.colmin:highdem.crop.colmax]
+                              highdem.crop.colmin:highdem.crop.colmax]
     lowdem.rowmin<-(row-1)*low.step+1
     lowdem.rowmax<-lowdem.rowmin+152
     lowdem.colmin<-(col-1)*low.step+1
     lowdem.colmax<-lowdem.colmin+152
     lowresDEM<-sspr.lowdem[lowdem.rowmin:lowdem.rowmax,
+                           lowdem.colmin:lowdem.colmax]
+    
+    row=row+1
+    i=i+1
+    
+    ndvi.array[,,i]<-NDVI
+    highres.array[,,i]<-highresDEM
+    highres.crop.array[,,i]<-highdemcrop
+    lowres.array[,,i]<-lowresDEM
+  }
+}
+
+#yelspring
+yspr.ndvi<-as.matrix(yspr.crop[[1]])
+yspr.highdem<-as.matrix(yspr.crop[[2]])
+yspr.lowdem<-as.matrix(yspr.lowrezdem)
+ndvi.array<- array(0, dim=c(height.ndvi,width.ndvi,totalframes))
+highres.array<- array(0, dim=c(height.dem,width.dem,totalframes))
+highres.crop.array<- array(0, dim=c(height.ndvi,width.ndvi,totalframes))
+lowres.array<- array(0, dim=c(height.dem,width.dem,totalframes))
+
+i<-0
+col=0
+for(x in 1:totalcols){
+  row=1
+  col=col+1
+  for(y in 1:totalrows){
+    
+    ndvi.rowmin<-ndvi.buffer + ((row-1)*high.step)+1
+    ndvi.rowmax<-ndvi.rowmin+50
+    ndvi.colmin<-ndvi.buffer + ((col-1)*high.step)+1
+    ndvi.colmax<-ndvi.colmin+50
+    NDVI<-yspr.ndvi[ndvi.rowmin:ndvi.rowmax,
+                 ndvi.colmin:ndvi.colmax]
+    highdem.rowmin<-dem.buffer + ((row-1)*high.step)+1 
+    highdem.rowmax<-highdem.rowmin+152
+    highdem.colmin<-dem.buffer + ((col-1)*high.step)+1
+    highdem.colmax<-highdem.colmin+152
+    highresDEM<-yspr.highdem[highdem.rowmin:highdem.rowmax,
+                    highdem.colmin: highdem.colmax]
+    highdem.crop.rowmin<-ndvi.buffer + ((row-1)*high.step)+1
+    highdem.crop.rowmax<-highdem.crop.rowmin+50
+    highdem.crop.colmin<-ndvi.buffer + ((col-1)*high.step)+1
+    highdem.crop.colmax<-highdem.crop.colmin+50
+    highdemcrop<-yspr.highdem[highdem.crop.rowmin:highdem.crop.rowmax,
+                    highdem.crop.colmin:highdem.crop.colmax]
+    lowdem.rowmin<-(row-1)*low.step+1
+    lowdem.rowmax<-lowdem.rowmin+152
+    lowdem.colmin<-(col-1)*low.step+1
+    lowdem.colmax<-lowdem.colmin+152
+    lowresDEM<-yspr.lowdem[lowdem.rowmin:lowdem.rowmax,
                    lowdem.colmin:lowdem.colmax]
     
     row=row+1
@@ -186,31 +249,12 @@ save(highres.array,file = "highres.RData")
 save(highres.crop.array,file = "highrescrop.RData")
 save(lowres.array,file = "lowres.RData")
 
-n=3 #n=1056 is a good one for presentation
+n=2000 #n=1056 is a good one for presentation
 plot(raster(ndvi.array[,,n]))
 plot(raster(highres.array[,,n]),ext=yel)
-plot(raster(lowres.array[,,n]),ext=yel2)
+plot(raster(lowres.array[,,n]),ext=extent)
 plot(raster(lowres.array[,,n]),ext=yel)
 plot(raster(highres.array[,,n]))
 
-n=3055 # set up par mfrow so can view all 3 at once
-plot(c(raster(ndvi.array[,,n]),))
-yel<-matrix(c(1/3, 1/3,
-              1/3, 2/3,
-              2/3, 2/3,
-              2/3, 1/3,
-              1/3, 1/3),
-            ncol = 2, byrow = TRUE)
-yel2<-matrix(c(4/9, 4/9,
-               4/9, 5/9,
-               5/9, 5/9,
-               5/9, 4/9,
-               4/9, 4/9),
-             ncol = 2, byrow = TRUE)
-
-i<-0
-for(col in 1:totalcols){
-  for(row in 1:totalrows){
-    i<-i+1
-  }
-}
+#randomly sample
+sample(x = 1:100,size = 1000,replace = TRUE)
