@@ -4,4 +4,4 @@ The model is now much more efficient than what was described in the blog post, t
 
 The best current script is ``residual-learning.R``. It refers to data available here: https://drive.google.com/open?id=1WICa8uCge-mopWLpH2ByH8D3FMQFoO9C
 
-```Analysis``` and ```Automated datapull``` are working directories for model construction and data download, respectively. Datapull is accomplished through a workflow based on kuberenetes pods. Analysis has poor(er) performing models and should mostly be ignored.
+```Analysis``` and ```Automated datapull``` are working directories for model construction and data download, respectively. Datapull is accomplished through a workflow based on kuberenetes pods. It should be interesting for anyone familiar with container orchestration. Analysis has poor(er) performing models and should mostly be ignored.
