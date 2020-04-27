@@ -7,3 +7,5 @@ The model is now much more efficient than what was described in the blog post, t
 I am looking to implement a UNet(https://arxiv.org/abs/1505.04597) inspired model which may be better at feature recognition and which builds upon the advances found using residual training. I am also interested in GANs to ensure the model is making realistic predictions, which is a problem for the current implementation.
 
 ```Analysis``` and ```Automated datapull``` are working directories for model construction and data download, respectively.``` Datapull``` is accomplished through a workflow based on kuberenetes pods. It should be interesting for anyone familiar with container orchestration. ```Analysis``` has poor(er) performing models and should mostly be ignored.
+
+https://grass.osgeo.org/grass78/manuals/r.geomorphon.html. This may improve network performance.
